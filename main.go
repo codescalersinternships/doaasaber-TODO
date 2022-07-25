@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 
+	httpSwagger "github.com/swaggo/http-swagger"
+
 	"github.com/gorilla/mux"
 	//"github.com/mattn/go-sqlite3"
 	"strconv"
@@ -86,17 +88,19 @@ func DeleteTodo(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	if err != nil {
-		panic("couldn't connect")
+		panic("can't connect to the database")
 	}
 	DB.AutoMigrate(&todos{})
-	//DB.AutoMigrate(&todos{})
 	router := mux.NewRouter()
 
-	router.HandleFunc("/gettodo", Gettodo).Methods("GET")
-	router.HandleFunc("/gettobyid/{id}", Gettodobyid).Methods("GET")
-	router.HandleFunc("/createtodo", CreateTodo).Methods("POST")
-	router.HandleFunc("/updatetodo/{ID}", UpadateTodo).Methods("PUT")
-	router.HandleFunc("/deletetodo/{taskId}", DeleteTodo).Methods("DELETE")
+	router.HandleFunc("/todo", Gettodo).Methods("GET")
+	router.HandleFunc("/todo/{id}", Gettodobyid).Methods("GET")
+	router.HandleFunc("/todo", CreateTodo).Methods("POST")
+	router.HandleFunc("/todo/{ID}", UpadateTodo).Methods("PUT")
+	router.HandleFunc("/todo/{taskId}", DeleteTodo).Methods("DELETE")
+	//router.HandleFunc("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler)).Methods("GET")
+	router.PathPrefix("/swagger").Handler(httpSwagger.WrapHandler)
+
 	log.Fatal(http.ListenAndServe(":9000", router))
 
 }
