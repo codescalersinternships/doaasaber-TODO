@@ -100,7 +100,6 @@ func main() {
 	router.HandleFunc("/todo/{taskId}", DeleteTodo).Methods("DELETE")
 	//router.HandleFunc("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler)).Methods("GET")
 	router.PathPrefix("/swagger").Handler(httpSwagger.WrapHandler)
-
 	log.Fatal(http.ListenAndServe(":9000", router))
 
 }
