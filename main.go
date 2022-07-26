@@ -1,4 +1,4 @@
-package main
+package todo
 
 import (
 	"encoding/json"
@@ -7,79 +7,74 @@ import (
 
 	"strconv"
 
-	httpSwagger "github.com/swaggo/http-swagger"
-
 	"github.com/gorilla/mux"
-	//"github.com/mattn/go-sqlite3"
 
 	_ "github.com/mattn/go-sqlite3"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 const DBName = "todos.db"
 
-var DB, err = gorm.Open(sqlite.Open(DBName), &gorm.Config{})
-
 type todos struct {
 	ID   int    `json:"id"`
 	Task string `json:"task"`
 }
+type Server struct {
+	DB *gorm.DB
+}
 
-func CreateTodo(w http.ResponseWriter, r *http.Request) {
+func (t *Server) CreateTodo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var new todos
 	json.NewDecoder(r.Body).Decode(&new)
-	DB.Create(&new)
+	t.DB.Create(&new)
 	json.NewEncoder(w).Encode(new)
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusCreated)
 
 }
-func Gettodo(w http.ResponseWriter, r *http.Request) {
-	_, err := DB.Model(&todos{}).Where("ID > ?", "0").Rows()
+func (t *Server) Gettodo(w http.ResponseWriter, r *http.Request) {
+	_, err := t.DB.Model(&todos{}).Where("ID > ?", "0").Rows()
 
 	if err != nil {
 		panic("error parsing data")
 	}
 	w.Header().Set("Content-Type", "application/json")
 	var new []todos
-	DB.Find(&new)
+	t.DB.Find(&new)
 	json.NewEncoder(w).Encode(new)
 	w.WriteHeader(http.StatusOK)
 
 }
 
-func Gettodobyid(w http.ResponseWriter, r *http.Request) {
+func (t *Server) Gettodobyid(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	var res todos
-	out := DB.First(&res, id)
-	//	fmt.Println(err)
+	out := t.DB.First(&res, id)
 	if out.Error != nil {
 		http.Error(w, out.Error.Error(), http.StatusInternalServerError)
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte("404 - can't find this task"))
 		return
-		//panic("error parsing data")
-
 	}
 	data, err := json.Marshal(res)
 	if err != nil {
 		http.Error(w, out.Error.Error(), http.StatusInternalServerError)
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("404 - can't find this task"))
+		w.Write([]byte("404 - Error can't find this task"))
 		return
 	}
 	w.Write(data)
 	w.Write([]byte("\n"))
 
 }
-
-func UpadateTodo(w http.ResponseWriter, r *http.Request) {
+func (t *Server) UpadateTodo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	param := mux.Vars(r)
 	var new todos
-	res := DB.First(&new, param["ID"])
+	res := t.DB.First(&new, param["ID"])
 	json.NewDecoder(r.Body).Decode(&new)
 
 	if res.Error != nil {
@@ -89,20 +84,21 @@ func UpadateTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	DB.Save(&new)
+	t.DB.Save(&new)
 	json.NewEncoder(w).Encode(&new)
 	w.WriteHeader(http.StatusOK)
 
 }
-func DeleteTodo(w http.ResponseWriter, r *http.Request) { //DELETE
+
+func (t *Server) DeleteTodo(w http.ResponseWriter, r *http.Request) { //DELETE
 	w.Header().Set("Content-Type", "application/json")
 	param := mux.Vars(r)
 	id, _ := strconv.Atoi(param["taskId"])
 
 	var new = todos{ID: id}
-	DB.Find(&new)
-	res := DB.First(&new, "ID")
-	DB.Delete(&new)
+	t.DB.Find(&new)
+	res := t.DB.First(&new, "ID")
+	t.DB.Delete(&new)
 	if res.Error != nil {
 		http.Error(w, res.Error.Error(), http.StatusInternalServerError)
 		w.WriteHeader(http.StatusNotFound)
@@ -113,91 +109,38 @@ func DeleteTodo(w http.ResponseWriter, r *http.Request) { //DELETE
 		w.Write([]byte("200 - Task deleted successfully"))
 	}
 }
-
-/*func DeleteTodo(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	param := mux.Vars(r)
-	id, _ := strconv.Atoi(param["taskId"])
-	var new = todos{ID: id}
-	DB.Find(&new)
-	DB.Delete(&new)
-
-	//var id_deleted = 0
-	if DB.RowsAffected > 0 {
-		DB.Delete(DB.Find(&new))
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("200 - this task is already deleted successfuly"))
-		return
-	} else if DB.RowsAffected == 0 {
-		w.WriteHeader(http.StatusNoContent)
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("404 - can't find this task"))
-		return
+func (t *Server) InitializeDB() {
+	var err error
+	t.DB, err = gorm.Open(sqlite.Open(DBName), &gorm.Config{})
+	if !(t.DB.Migrator().HasTable(&todos{})) {
+		log.Println("table { todos } created")
+		t.DB.Migrator().CreateTable(&todos{})
 	}
-	w.WriteHeader(http.StatusOK)
-
-	w.Write([]byte("200 - Task deleted successfuly"))
-}*/
-
-/*func DeleteTodo(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	param := mux.Vars(r)
-	id, _ := strconv.Atoi(param["taskId"])
-	var new = todos{ID: id}
-	DB.Delete(&new, param["ID"])
-	if out.Error != nil {
-
-		http.Error(w, out.Error.Error(), http.StatusInternalServerError)
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("404 - can't find this task"))
-		return
+	if err != nil {
+		panic("can't connect to DB")
 	}
-	var id_deleted = 0
-	if DB.RowsAffected > 0 {
-		DB.Delete(DB.Find(&id_deleted))
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("200 - Task deleted successfuly"))
-	} else {
-		w.WriteHeader(http.StatusNoContent)
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("200 - Task deleted"))
-}*/
-
-/*func DeleteTodo(w http.ResponseWriter, r *http.Request) { //DELETE
-	w.Header().Set("Content-Type", "application/json")
-	param := mux.Vars(r)
-	id, _ := strconv.Atoi(param["taskId"])
-
-	var new = todos{ID: id}
-	DB.Find(&new)
-	DB.Delete(&new)
-	var id_deleted = 0
-	if DB.RowsAffected > 0 {
-		DB.Delete(DB.Find(&id_deleted))
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("200 - Task deleted successfuly"))
-	} else {
-		w.WriteHeader(http.StatusNoContent)
-		w.Write([]byte("204 - Task already deleted"))
-	}
-}*/
+}
 
 func main() {
-
-	if err != nil {
-		panic("can't connect to the database")
-	}
-	DB.AutoMigrate(&todos{})
+	t := Server{}
+	t.InitializeDB()
+	// var err error
+	// t.DB, err = gorm.Open(sqlite.Open(DBName), &gorm.Config{})
+	// if !(t.DB.Migrator().HasTable(&todos{})) {
+	// 	log.Println("table { todos } created")
+	// 	t.DB.Migrator().CreateTable(&todos{})
+	// }
+	// if err != nil {
+	// 	panic("can't connect to DB")
+	// }
 	router := mux.NewRouter()
+	router.HandleFunc("/todo", t.Gettodo).Methods("GET")
+	router.HandleFunc("/todo/{id}", t.Gettodobyid).Methods("GET")
+	router.HandleFunc("/todo", t.CreateTodo).Methods("POST")
+	router.HandleFunc("/todo/{id}", t.UpadateTodo).Methods("PUT")
+	router.HandleFunc("/todo/{taskId}", t.DeleteTodo).Methods("DELETE")
 
-	router.HandleFunc("/todo", Gettodo).Methods("GET")
-	router.HandleFunc("/todo/{id}", Gettodobyid).Methods("GET")
-	router.HandleFunc("/todo", CreateTodo).Methods("POST")
-	router.HandleFunc("/todo/{ID}", UpadateTodo).Methods("PUT")
-	router.HandleFunc("/todo/{taskId}", DeleteTodo).Methods("DELETE")
-	//router.HandleFunc("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler)).Methods("GET")
 	router.PathPrefix("/swagger").Handler(httpSwagger.WrapHandler)
-	log.Fatal(http.ListenAndServe(":9000", router))
 
+	log.Fatal(http.ListenAndServe(":9000", router))
 }

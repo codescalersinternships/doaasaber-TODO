@@ -1,4 +1,4 @@
-module main
+module todo
 
 go 1.18
 
