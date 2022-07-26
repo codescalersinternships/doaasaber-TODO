@@ -3,7 +3,6 @@ package todo
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,37 +19,54 @@ func TestCreateTodo(t *testing.T) {
 
 	t.Run("create new todo", func(t *testing.T) {
 		request, _ := http.NewRequest(http.MethodPost, "/todo", bytes.NewBuffer(jsonValue))
-		fmt.Println("here1")
 		response := httptest.NewRecorder()
-		fmt.Println("here2")
-		fmt.Println(server.DB)
-		fmt.Println("here3")
 
 		server.CreateTodo(response, request)
 
 		assertStatus(t, response.Code, http.StatusOK)
-		fmt.Println("here4")
 
 	})
 }
 
-// func TestGetTodo(t *testing.T) {
-// 	var server Server
-// 	newTodo := todos{
-// 		ID:   19,
-// 		Task: "task3",
-// 	}
-// 	jsonValue, _ := json.Marshal(newTodo)
+func TestGetTodo(t *testing.T) {
+	var server Server
+	server.InitializeDB()
 
-// 	t.Run("create new todo", func(t *testing.T) {
-// 		request, _ := http.NewRequest(http.MethodPost, "/todo", bytes.NewBuffer(jsonValue))
-// 		response := httptest.NewRecorder()
+	newTodo := todos{
+		ID:   9,
+		Task: "task3",
+	}
+	jsonValue, _ := json.Marshal(newTodo)
 
-// 		server.Gettodo(response, request)
+	t.Run("get all todo", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodGet, "/todo", bytes.NewBuffer(jsonValue))
+		response := httptest.NewRecorder()
 
-// 		assertStatus(t, response.Code, http.StatusOK)
-// 	})
-// }
+		server.Gettodo(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+	})
+}
+func TestGETTodoById(t *testing.T) {
+	var server Server
+	server.InitializeDB()
+
+	newTodo := todos{
+		ID:   19,
+		Task: "task3",
+	}
+	jsonValue, _ := json.Marshal(newTodo)
+
+	t.Run("get single todo", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodGet, "/todo/19", bytes.NewBuffer(jsonValue))
+		response := httptest.NewRecorder()
+
+		server.Gettodobyid(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+	})
+
+}
 
 func assertStatus(t testing.TB, got, want int) {
 	t.Helper()

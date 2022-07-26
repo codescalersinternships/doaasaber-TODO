@@ -55,15 +55,15 @@ func (t *Server) Gettodobyid(w http.ResponseWriter, r *http.Request) {
 	out := t.DB.First(&res, id)
 	if out.Error != nil {
 		http.Error(w, out.Error.Error(), http.StatusInternalServerError)
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("404 - can't find this task"))
-		return
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("500 - can't find this task"))
+		return 
 	}
 	data, err := json.Marshal(res)
 	if err != nil {
 		http.Error(w, out.Error.Error(), http.StatusInternalServerError)
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("404 - Error can't find this task"))
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("500 - Error can't find this task"))
 		return
 	}
 	w.Write(data)
