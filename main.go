@@ -5,11 +5,12 @@ import (
 	"log"
 	"net/http"
 
+	"strconv"
+
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	"github.com/gorilla/mux"
 	//"github.com/mattn/go-sqlite3"
-	"strconv"
 
 	_ "github.com/mattn/go-sqlite3"
 	"gorm.io/driver/sqlite"
@@ -52,10 +53,22 @@ func Gettodobyid(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	var res todos
-	DB.First(&res, id)
+	out := DB.First(&res, id)
+	//	fmt.Println(err)
+	if out.Error != nil {
+		http.Error(w, out.Error.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("404 - can't find this task"))
+		return
+		//panic("error parsing data")
+
+	}
 	data, err := json.Marshal(res)
 	if err != nil {
-		panic("error parsing data")
+		http.Error(w, out.Error.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("404 - can't find this task"))
+		return
 	}
 	w.Write(data)
 	w.Write([]byte("\n"))
@@ -66,24 +79,109 @@ func UpadateTodo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	param := mux.Vars(r)
 	var new todos
-	DB.First(&new, param["ID"])
+	res := DB.First(&new, param["ID"])
 	json.NewDecoder(r.Body).Decode(&new)
+
+	if res.Error != nil {
+		http.Error(w, res.Error.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("404 - can't find this task"))
+		return
+	}
+
 	DB.Save(&new)
 	json.NewEncoder(w).Encode(&new)
 	w.WriteHeader(http.StatusOK)
 
 }
+func DeleteTodo(w http.ResponseWriter, r *http.Request) { //DELETE
+	w.Header().Set("Content-Type", "application/json")
+	param := mux.Vars(r)
+	id, _ := strconv.Atoi(param["taskId"])
 
-func DeleteTodo(w http.ResponseWriter, r *http.Request) {
+	var new = todos{ID: id}
+	DB.Find(&new)
+	res := DB.First(&new, "ID")
+	DB.Delete(&new)
+	if res.Error != nil {
+		http.Error(w, res.Error.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("404 - can't find this task"))
+		return
+	} else {
+		w.WriteHeader(http.StatusAccepted)
+		w.Write([]byte("200 - Task deleted successfully"))
+	}
+}
+
+/*func DeleteTodo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	param := mux.Vars(r)
 	id, _ := strconv.Atoi(param["taskId"])
 	var new = todos{ID: id}
+	DB.Find(&new)
 	DB.Delete(&new)
+
+	//var id_deleted = 0
+	if DB.RowsAffected > 0 {
+		DB.Delete(DB.Find(&new))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("200 - this task is already deleted successfuly"))
+		return
+	} else if DB.RowsAffected == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("404 - can't find this task"))
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 
+	w.Write([]byte("200 - Task deleted successfuly"))
+}*/
+
+/*func DeleteTodo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	param := mux.Vars(r)
+	id, _ := strconv.Atoi(param["taskId"])
+	var new = todos{ID: id}
+	DB.Delete(&new, param["ID"])
+	if out.Error != nil {
+
+		http.Error(w, out.Error.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("404 - can't find this task"))
+		return
+	}
+	var id_deleted = 0
+	if DB.RowsAffected > 0 {
+		DB.Delete(DB.Find(&id_deleted))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("200 - Task deleted successfuly"))
+	} else {
+		w.WriteHeader(http.StatusNoContent)
+	}
+	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("200 - Task deleted"))
-}
+}*/
+
+/*func DeleteTodo(w http.ResponseWriter, r *http.Request) { //DELETE
+	w.Header().Set("Content-Type", "application/json")
+	param := mux.Vars(r)
+	id, _ := strconv.Atoi(param["taskId"])
+
+	var new = todos{ID: id}
+	DB.Find(&new)
+	DB.Delete(&new)
+	var id_deleted = 0
+	if DB.RowsAffected > 0 {
+		DB.Delete(DB.Find(&id_deleted))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("200 - Task deleted successfuly"))
+	} else {
+		w.WriteHeader(http.StatusNoContent)
+		w.Write([]byte("204 - Task already deleted"))
+	}
+}*/
 
 func main() {
 
