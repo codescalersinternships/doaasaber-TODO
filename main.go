@@ -2,8 +2,10 @@ package todo
 
 import (
 	"encoding/json"
+	"html/template"
 	"log"
 	"net/http"
+	"path/filepath"
 
 	"strconv"
 
@@ -57,7 +59,7 @@ func (t *Server) Gettodobyid(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, out.Error.Error(), http.StatusInternalServerError)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("500 - can't find this task"))
-		return 
+		return
 	}
 	data, err := json.Marshal(res)
 	if err != nil {
@@ -120,20 +122,19 @@ func (t *Server) InitializeDB() {
 		panic("can't connect to DB")
 	}
 }
+func (t *Server) Index(w http.ResponseWriter, r *http.Request) {
+	lp := filepath.Join("template", "base.html")
+	fp := filepath.Join("template", "index.html")
 
+	tmpl, _ := template.ParseFiles(lp, fp)
+	tmpl.ExecuteTemplate(w, "base", nil)
+}
 func main() {
 	t := Server{}
 	t.InitializeDB()
-	// var err error
-	// t.DB, err = gorm.Open(sqlite.Open(DBName), &gorm.Config{})
-	// if !(t.DB.Migrator().HasTable(&todos{})) {
-	// 	log.Println("table { todos } created")
-	// 	t.DB.Migrator().CreateTable(&todos{})
-	// }
-	// if err != nil {
-	// 	panic("can't connect to DB")
-	// }
+
 	router := mux.NewRouter()
+	router.HandleFunc("/", t.Index).Methods("GET")
 	router.HandleFunc("/todo", t.Gettodo).Methods("GET")
 	router.HandleFunc("/todo/{id}", t.Gettodobyid).Methods("GET")
 	router.HandleFunc("/todo", t.CreateTodo).Methods("POST")
