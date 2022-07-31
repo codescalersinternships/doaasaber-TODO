@@ -1,147 +1,133 @@
-package todo
+package main
 
 import (
-	"encoding/json"
-	"html/template"
+	"context"
 	"log"
 	"net/http"
-	"path/filepath"
+	"os"
+	"os/signal"
 
-	"strconv"
+	model "swag-gin-demo/models"
+	"time"
 
-	"github.com/gorilla/mux"
+	middleware "swag-gin-demo/middleware"
 
-	_ "github.com/mattn/go-sqlite3"
-	httpSwagger "github.com/swaggo/http-swagger"
-	"gorm.io/driver/sqlite"
+	"github.com/gin-gonic/gin"
+
+	"github.com/gin-contrib/cors"
 	"gorm.io/gorm"
 )
 
-const DBName = "todos.db"
-
-type todos struct {
-	ID   int    `json:"id"`
-	Task string `json:"task"`
-}
-type Server struct {
-	DB *gorm.DB
+type App struct {
+	db *gorm.DB
 }
 
-func (t *Server) CreateTodo(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	var new todos
-	json.NewDecoder(r.Body).Decode(&new)
-	t.DB.Create(&new)
-	json.NewEncoder(w).Encode(new)
-	w.WriteHeader(http.StatusCreated)
-
+func newApp(db *gorm.DB) *App {
+	return &App{db}
 }
-func (t *Server) Gettodo(w http.ResponseWriter, r *http.Request) {
-	_, err := t.DB.Model(&todos{}).Where("ID > ?", "0").Rows()
 
+type ErrorMsg struct {
+	Message string `json:"message"`
+}
+
+func (app *App) GetAllTodos(c *gin.Context) {
+	lists, err := model.GetAllTodosHandler()
 	if err != nil {
-		panic("error parsing data")
+		r := ErrorMsg{"Error!!, Can't get all todos"}
+		c.JSON(http.StatusBadRequest, r)
 	}
-	w.Header().Set("Content-Type", "application/json")
-	var new []todos
-	t.DB.Find(&new)
-	json.NewEncoder(w).Encode(new)
-	w.WriteHeader(http.StatusOK)
-
+	c.JSON(http.StatusAccepted, &lists)
 }
 
-func (t *Server) Gettodobyid(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id := vars["id"]
-	var res todos
-	out := t.DB.First(&res, id)
-	if out.Error != nil {
-		http.Error(w, out.Error.Error(), http.StatusInternalServerError)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("500 - can't find this task"))
+func (app *App) CreateTodo(c *gin.Context) {
+	list := &model.TodoList{}
+	if err := c.BindJSON(&list); err != nil {
+		r := ErrorMsg{"Error!!"}
+		c.JSON(http.StatusBadRequest, r)
 		return
 	}
-	data, err := json.Marshal(res)
+	todolist := list.CreateTodoHandler()
+	c.JSON(http.StatusCreated, &todolist)
+}
+
+func (app *App) DeleteTodo(c *gin.Context) {
+	id := c.Param("id")
+	deletedList, err := model.DeleteTodoHandler(id)
 	if err != nil {
-		http.Error(w, out.Error.Error(), http.StatusInternalServerError)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("500 - Error can't find this task"))
+		r := ErrorMsg{"Failed to delete"}
+		c.JSON(http.StatusInternalServerError, r)
 		return
 	}
-	w.Write(data)
-	w.Write([]byte("\n"))
-
-}
-func (t *Server) UpadateTodo(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	param := mux.Vars(r)
-	var new todos
-	res := t.DB.First(&new, param["ID"])
-	json.NewDecoder(r.Body).Decode(&new)
-
-	if res.Error != nil {
-		http.Error(w, res.Error.Error(), http.StatusInternalServerError)
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("404 - can't find this task"))
-		return
-	}
-
-	t.DB.Save(&new)
-	json.NewEncoder(w).Encode(&new)
-	w.WriteHeader(http.StatusOK)
-
+	c.JSON(http.StatusOK, deletedList)
 }
 
-func (t *Server) DeleteTodo(w http.ResponseWriter, r *http.Request) { //DELETE
-	w.Header().Set("Content-Type", "application/json")
-	param := mux.Vars(r)
-	id, _ := strconv.Atoi(param["taskId"])
-
-	var new = todos{ID: id}
-	t.DB.Find(&new)
-	res := t.DB.First(&new, "ID")
-	t.DB.Delete(&new)
-	if res.Error != nil {
-		http.Error(w, res.Error.Error(), http.StatusInternalServerError)
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("404 - can't find this task"))
-		return
-	} else {
-		w.WriteHeader(http.StatusAccepted)
-		w.Write([]byte("200 - Task deleted successfully"))
-	}
-}
-func (t *Server) InitializeDB() {
-	var err error
-	t.DB, err = gorm.Open(sqlite.Open(DBName), &gorm.Config{})
-	if !(t.DB.Migrator().HasTable(&todos{})) {
-		log.Println("table { todos } created")
-		t.DB.Migrator().CreateTable(&todos{})
-	}
+func (app *App) GetTodoByID(c *gin.Context) {
+	id := c.Param("id")
+	task, err := model.GetTodoByIDHandler(id)
 	if err != nil {
-		panic("can't connect to DB")
+		c.JSON(http.StatusNotFound, gin.H{"Error ": "ID Not Found !!"})
+		return
 	}
+	c.JSON(http.StatusAccepted, task)
 }
-func (t *Server) Index(w http.ResponseWriter, r *http.Request) {
-	lp := filepath.Join("template", "base.html")
-	fp := filepath.Join("template", "index.html")
 
-	tmpl, _ := template.ParseFiles(lp, fp)
-	tmpl.ExecuteTemplate(w, "base", nil)
+func (app *App) MarkCompleted(c *gin.Context) {
+	var list model.TodoList
+	if err := app.db.Where("id= ?", c.Param("id")).First(&list).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"Error ": "ID Not Found !!"})
+		return
+	}
+	list.Done = true
+	c.JSON(http.StatusAccepted, list)
+
 }
+
 func main() {
-	t := Server{}
-	t.InitializeDB()
+	router := gin.New()
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:  []string{"*"},
+		AllowMethods:  []string{"PUT", "PATCH", "GET", "POST", "DELETE"},
+		AllowHeaders:  []string{"content-type"},
+		ExposeHeaders: []string{"X-Total-Count"},
+	}))
 
-	router := mux.NewRouter()
-	router.HandleFunc("/", t.Index).Methods("GET")
-	router.HandleFunc("/todo", t.Gettodo).Methods("GET")
-	router.HandleFunc("/todo/{id}", t.Gettodobyid).Methods("GET")
-	router.HandleFunc("/todo", t.CreateTodo).Methods("POST")
-	router.HandleFunc("/todo/{id}", t.UpadateTodo).Methods("PUT")
-	router.HandleFunc("/todo/{taskId}", t.DeleteTodo).Methods("DELETE")
+	db, err := model.ConnectDB()
+	if err != nil {
+		panic("Failed to connect to database !!")
+	}
 
-	router.PathPrefix("/swagger").Handler(httpSwagger.WrapHandler)
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: router,
+	}
 
-	log.Fatal(http.ListenAndServe(":9000", router))
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("listen: %s\n", err)
+		}
+	}()
+
+	log.Println("Server exiting")
+	app := newApp(db)
+	router.Use(middleware.GinBodyMiddleware())
+	router.GET("/todo", app.GetAllTodos)
+	router.Use(middleware.GinBodyMiddleware())
+	router.POST("/todo", app.CreateTodo)
+	router.Use(middleware.GinBodyMiddleware())
+	router.GET("/todo/:id", app.GetTodoByID)
+	router.Use(middleware.GinBodyMiddleware())
+	router.DELETE("/todo/:id", app.DeleteTodo)
+	router.Use(middleware.GinBodyMiddleware())
+	router.PATCH("/todo/:id", app.MarkCompleted)
+	quit := make(chan os.Signal)
+	signal.Notify(quit, os.Interrupt)
+	<-quit
+	log.Println("Shutdown Server ...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal("Server Shutdown:", err)
+	}
+	router.Run()
 }

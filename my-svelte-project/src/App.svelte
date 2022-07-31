@@ -1,9 +1,12 @@
 <script>
-	export let name;
+	import Modal from './Modal.svelte';
+	
 </script>
+
 <main>
-	<h1>Hello {name}!</h1>
-	<p>Visit the <a href="https://svelte.dev/tutorial">Svelte tutorial</a> to learn how to build Svelte apps.</p>
+
+	
+<Modal />
 </main>
 
 <style>
@@ -14,10 +17,10 @@
 		margin: 0 auto;
 	}
 
-	h1 {
-		color: #ff3e00;
+   h2 {
+		color: #000000;
 		text-transform: uppercase;
-		font-size: 4em;
+		font-size: 3em;
 		font-weight: 100;
 	}
 
@@ -26,4 +29,6 @@
 			max-width: none;
 		}
 	}
+
+
 </style>
