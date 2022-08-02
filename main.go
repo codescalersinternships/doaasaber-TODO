@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"time"
 
 	model "swag-gin-demo/models"
-	"time"
 
 	middleware "swag-gin-demo/middleware"
 
@@ -82,6 +82,20 @@ func (app *App) MarkCompleted(c *gin.Context) {
 	c.JSON(http.StatusAccepted, list)
 
 }
+
+/*func (app *App) UpdateTodo(c *gin.Context) {
+id := c.Param("id")
+task, err := model.UpdateTodoHandler(id)
+if err != nil {
+	c.JSON(http.StatusNotFound, gin.H{"Error ": "ID Not Found !!"})
+	return
+}
+
+
+
+
+
+ } */
 
 func main() {
 	router := gin.New()

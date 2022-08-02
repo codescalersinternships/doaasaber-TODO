@@ -49,6 +49,16 @@ func DeleteTodoHandler(id string) (TodoList, error) {
 	return deletedTodo, err2
 }
 
+func UpdateTodoHandler(id string) (TodoList, error) {
+	updateTask := TodoList{}
+
+	db, err := ConnectDB()
+	if err != nil {
+		return updateTask, err
+	}
+	errr := db.Where("ID=?", id).First(&updateTask).Error
+	return updateTask, errr
+}
 func GetTodoByIDHandler(id string) (TodoList, error) {
 	getTask := TodoList{}
 	db, err := ConnectDB()
